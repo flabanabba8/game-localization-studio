@@ -1,6 +1,8 @@
 """Guarded, source-addressed RPG Maker MV/MZ JSON translation drafts."""
 import hashlib
 import json
+import os
+import stat
 import fcntl
 from contextlib import contextmanager
 from collections import Counter
@@ -88,9 +90,19 @@ class Studio:
         protected = '.hermes' in original_parts or '.hermes' in source.parts or (profile_home is not None and source.is_relative_to(profile_home))
         if any(p in private for p in (*original_parts, *source.parts)) or protected and not own_output:
             raise ValueError('Credential/configuration directories are not game data')
-        if not source.is_file() or source.stat().st_size > 8 * 1024 * 1024: raise ValueError('Game JSON must be a regular file up to 8 MiB')
         if message_rows is not None and (isinstance(message_rows, bool) or not isinstance(message_rows, int) or not 1 <= message_rows <= 20): raise ValueError('Message rows must be an integer between 1 and 20')
-        raw = source.read_bytes(); obj = json.loads(raw.decode('utf-8-sig'))
+        fd = os.open(source, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0))
+        with os.fdopen(fd, 'rb') as stream:
+            before = os.fstat(stream.fileno())
+            if not stat.S_ISREG(before.st_mode) or before.st_size > 8 * 1024 * 1024:
+                raise ValueError('Game JSON must be a regular file up to 8 MiB')
+            raw = stream.read(8 * 1024 * 1024 + 1)
+            after = os.fstat(stream.fileno())
+        current = source.lstat()
+        identity = lambda x: (x.st_dev, x.st_ino, x.st_size, x.st_mtime_ns)
+        if len(raw) > 8 * 1024 * 1024 or identity(before) != identity(after) or identity(after) != identity(current) or not stat.S_ISREG(current.st_mode):
+            raise ValueError('Game JSON changed or exceeded the size limit during import')
+        obj = json.loads(raw.decode('utf-8-sig'))
         units, groups, skipped = [], [], 0
         if source.name in DATABASE_FIELDS and isinstance(obj, list):
             for index, item in enumerate(obj):

@@ -1,9 +1,11 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 root = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('localize_test', root/'__init__.py', submodule_search_locations=[str(root)])
@@ -12,6 +14,21 @@ from localize_test.core import Studio
 
 
 class StudioTests(unittest.TestCase):
+    def test_import_rejects_atomic_source_replacement(self):
+        with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
+            source = Path(tmp)/'Actors.json'; source.write_text('[null]')
+            replacement = Path(tmp)/'replacement'; replacement.write_text('[null, {}]')
+            original = module.core.os.fstat; calls = 0
+            def replace(fd):
+                nonlocal calls
+                calls += 1
+                value = original(fd)
+                if calls == 2: os.replace(replacement, source)
+                return value
+            with patch.object(module.core.os, 'fstat', side_effect=replace):
+                with self.assertRaisesRegex(ValueError, 'changed'): Studio(Path(tmp)/'data').inspect(str(source))
+            self.assertEqual(list((Path(tmp)/'data').iterdir()), [])
+
     def test_find_saved_draft_without_exposing_game_text(self):
         with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
             source = Path(tmp)/'Actors.json'
