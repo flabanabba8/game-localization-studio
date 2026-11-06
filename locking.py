@@ -29,4 +29,4 @@ def exclusive_lock(path, busy):
                 stream.seek(0)
                 msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
         else:
-            raise ValueError('Media work requires supported file locking')
+            raise ValueError('Draft operations require supported file locking')
