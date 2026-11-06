@@ -18,7 +18,7 @@ is bundled. License: GPL-3.0-or-later.
 Selected database coverage includes actor names/nicknames/profiles, class names,
 skill names/descriptions/messages, item/equipment names/descriptions, enemy
 names, state names/messages, the system title/currency, system terms and messages, and map display names. System terms cover the `basic`, `commands`, `params` and `messages` fields documented in [RPG Maker MV’s System::Terms format](https://rpgmakerofficial.com/product/MV_Help/page/03_52.html); `%1`-style message placeholders are preserved.
-Internal notes, file names, variable names and numeric IDs are not translated.
+Internal notes, file names, variable names and numeric IDs are not translated. Optional `include_system_types` on `System.json` also exposes element, skill, equipment, weapon and armor type names; it is off by default because custom scripts or plugins may depend on original spellings. Inspect those scripts and test the game before using such translations. The [RPG Maker MV System format](https://rpgmakerofficial.com/product/MV_Help/page/03_50.html) identifies these arrays.
 
 Choice translations also update matching branch labels. If an original branch
 label differs, a branch is missing, or the choice block has no end, that choice

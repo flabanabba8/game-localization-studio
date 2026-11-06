@@ -4,13 +4,13 @@ import plugin from '../desktop/plugin.js'
 
 export async function run(assert, document) {
   const contributions = [], calls = []
-  let translation = null
+  let translation = null, includeTypes = false
   const id = 'a'.repeat(32)
   const ctx = { register: c => contributions.push(c), rest: async (_, { body }) => {
     calls.push(body)
     switch (body.operation) {
-      case 'localize_inspect': return { draft_id: id, source_name: 'Map001.json', units: 1, message_groups: 1, layout_status: 'unknown; no row limit' }
-      case 'localize_get': return { draft_id: id, units: [{ id: 0, source: 'Hello %1', translation, group: null, kind: 'system_term' }], total: 1, next_offset: null }
+      case 'localize_inspect': includeTypes = !!body.arguments.include_system_types; return { draft_id: id, source_name: 'Map001.json', units: 1, message_groups: 1, layout_status: 'unknown; no row limit', system_type_notice: includeTypes ? 'Custom scripts may depend on type names.' : '' }
+      case 'localize_get': return { draft_id: id, units: [{ id: 0, source: 'Hello %1', translation, group: null, kind: includeTypes ? 'system_type' : 'system_term' }], total: 1, next_offset: null }
       case 'localize_translate': translation = body.arguments.text; return { saved: true }
       case 'localize_validate': return { structural_ok: true, errors: [], layout_status: 'unknown; no row limit supplied', coverage: 'Selected fields only' }
       case 'localize_export': return { path: '/tmp/translated.json' }
@@ -33,7 +33,14 @@ export async function run(assert, document) {
     await change(document.querySelector('input'), '/tmp/Map001.json')
     await act(async () => document.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
     assert.equal(calls.filter(c => c.operation === 'localize_export').length, 0)
+    assert.equal(calls.find(c => c.operation === 'localize_inspect').arguments.include_system_types, undefined)
     assert.match(document.body.textContent, /system text/)
+    await change(document.querySelector('input'), '/tmp/System.json')
+    await act(async () => document.querySelector('input[type=checkbox]').click())
+    await act(async () => document.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
+    assert.equal(calls.filter(c => c.operation === 'localize_inspect').at(-1).arguments.include_system_types, true)
+    assert.match(document.body.textContent, /system type/)
+    assert.match(document.body.textContent, /Custom scripts may depend/)
     await change(document.querySelector('textarea'), 'Bonjour %1')
     await click('Save translation')
     assert.equal(calls.find(c => c.operation === 'localize_translate').arguments.text, 'Bonjour %1')
@@ -42,5 +49,5 @@ export async function run(assert, document) {
     await click('Export translated copy')
     assert.equal(document.querySelector('details').open, false)
   } finally { await act(async () => root.unmount()) }
-  return { passed: true, checks: ['explicit import', 'system text label', 'translation editing', 'unknown layout is visible', 'explicit export', 'file path collapsed', 'timer cleanup'] }
+  return { passed: true, checks: ['explicit import', 'system type opt-in and warning', 'system text/type labels', 'translation editing', 'unknown layout is visible', 'explicit export', 'file path collapsed', 'timer cleanup'] }
 }

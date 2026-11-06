@@ -9,7 +9,7 @@ const button = (text, onClick, disabled = false, props = {}) => h('button', { st
 function Unit({ unit, save, busy }) {
   const [text, setText] = useState(unit.translation ?? '')
   useEffect(() => setText(unit.translation ?? ''), [unit.id, unit.translation])
-  return h('article', { style: card }, h('strong', null, `Unit ${unit.id}${unit.kind === 'database' ? ' · database' : unit.kind === 'system_term' ? ' · system text' : unit.aliases ? ' · choice' : ' · message'}`),
+  return h('article', { style: card }, h('strong', null, `Unit ${unit.id}${unit.kind === 'database' ? ' · database' : unit.kind === 'system_term' ? ' · system text' : unit.kind === 'system_type' ? ' · system type' : unit.aliases ? ' · choice' : ' · message'}`),
     h('p', null, unit.source), unit.blocked_reason && h('p', { role: 'note' }, unit.blocked_reason),
     h('label', null, 'Translation', h('textarea', { style: { ...field, display: 'block', width: '100%', minHeight: 70 }, value: text,
       disabled: busy || !!unit.blocked_reason, maxLength: 10000, onChange: e => setText(e.target.value) })),
@@ -17,7 +17,7 @@ function Unit({ unit, save, busy }) {
 }
 
 function Localization({ ctx }) {
-  const [path, setPath] = useState(''), [rows, setRows] = useState(''), [draft, setDraft] = useState(null), [page, setPage] = useState(null)
+  const [path, setPath] = useState(''), [rows, setRows] = useState(''), [systemTypes, setSystemTypes] = useState(false), [draft, setDraft] = useState(null), [page, setPage] = useState(null)
   const [offset, setOffset] = useState(0), [report, setReport] = useState(null), [exported, setExported] = useState(null)
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
   const call = (operation, args = {}) => ctx.rest('/action', { method: 'POST', body: { operation, arguments: args }, timeoutMs: 60000 })
@@ -28,19 +28,20 @@ function Localization({ ctx }) {
     h('header', null, h('h1', { style: { fontSize: 28, fontWeight: 700 } }, 'Game Localization Studio'), h('p', null, 'Translate the text while keeping the game data intact.')),
     error && h('p', { role: 'alert', style: card }, error),
     h('form', { style: card, onSubmit: e => { e.preventDefault(); task(async () => {
-      const args = { source_path: path, ...(rows ? { message_rows: Number(rows) } : {}) }
+      const args = { source_path: path, ...(rows ? { message_rows: Number(rows) } : {}), ...(systemTypes ? { include_system_types: true } : {}) }
       const result = await call('localize_inspect', args); setDraft(result); setOffset(0); setReport(null); setExported(null); await load(result.draft_id, 0)
     }) } },
       h('label', null, 'RPG Maker JSON file on the Hermes host', h('input', { style: { ...field, display: 'block', width: '100%' }, value: path, disabled: busy, onChange: e => setPath(e.target.value) })),
       h('label', null, 'Measured message-row limit (optional)', h('input', { style: { ...field, display: 'block' }, type: 'number', min: 1, max: 20, value: rows, disabled: busy, onChange: e => setRows(e.target.value) })),
+      h('label', null, h('input', { type: 'checkbox', checked: systemTypes, disabled: busy, onChange: e => setSystemTypes(e.target.checked) }), ' Include System.json type names (custom scripts may depend on original spellings)'),
       button('Open editable draft', undefined, busy || !path.trim(), { type: 'submit' })),
     draft && h('section', { style: { display: 'grid', gap: 14 }, 'aria-label': 'Translation draft' },
       h('div', { style: card }, h('h2', null, draft.source_name), h('p', null, `${draft.units} units · ${draft.message_groups} message groups`),
-        h('p', null, draft.layout_status),
+        h('p', null, draft.layout_status), draft.system_type_notice && h('p', { role: 'note' }, draft.system_type_notice),
         h('div', { style: row }, button('Validate draft', () => task(async () => setReport(await call('localize_validate', { draft_id: draft.draft_id }))), busy),
           button('Export translated copy', () => task(async () => setExported(await call('localize_export', { draft_id: draft.draft_id }))), busy)),
         report && h('div', { role: 'status' }, h('p', null, report.structural_ok ? 'Structural checks passed' : `${report.errors.length} checks need attention`),
-          h('p', null, report.layout_status), h('p', null, report.coverage), ...report.errors.map((e, i) => h('p', { key: i }, `${e.error} ${e.unit ?? e.group ?? ''}`))),
+          h('p', null, report.layout_status), h('p', null, report.coverage), report.system_type_notice && h('p', null, report.system_type_notice), ...report.errors.map((e, i) => h('p', { key: i }, `${e.error} ${e.unit ?? e.group ?? ''}`))),
         exported && h('details', null, h('summary', null, 'Show exported file location'), h('code', { style: { overflowWrap: 'anywhere' } }, exported.path))),
       page && h('section', { 'aria-label': 'Translation units', style: { display: 'grid', gap: 12 } }, ...page.units.map(unit => h(Unit, { key: `${draft.draft_id}/${unit.id}`, unit, save, busy }))),
       page && h('div', { style: row }, button('Previous units', () => task(async () => { const n = Math.max(0, offset - 20); setOffset(n); await load(draft.draft_id, n) }), busy || !offset),

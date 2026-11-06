@@ -79,9 +79,11 @@ class Studio:
             except BlockingIOError: raise RuntimeError('This draft is busy; wait for the current operation') from None
             yield
 
-    def inspect(self, source_path, message_rows=None):
+    def inspect(self, source_path, message_rows=None, include_system_types=False):
+        if type(include_system_types) is not bool: raise ValueError('include_system_types must be boolean')
         source = Path(source_path).expanduser()
         if not source.is_absolute() or source.is_symlink() or source.suffix.lower() != '.json': raise ValueError('Choose an absolute RPG Maker JSON file path')
+        if include_system_types and source.name != 'System.json': raise ValueError('System-type opt-in applies only to System.json')
         original_parts = source.parts
         source = source.resolve(strict=True)
         private = ('.ssh', '.gnupg', '.aws', '.azure', '.codex', '.docker', '.kube', '.pki', '.config')
@@ -117,6 +119,13 @@ class Studio:
                 value = obj.get(field)
                 if isinstance(value, str) and value:
                     units.append({'id': len(units), 'path': [field], 'source': value, 'group': None, 'translation': None, 'kind': 'database'})
+            if source.name == 'System.json' and include_system_types:
+                for field in ('armorTypes', 'elements', 'equipTypes', 'skillTypes', 'weaponTypes'):
+                    values = obj.get(field)
+                    if isinstance(values, list):
+                        for index, value in enumerate(values):
+                            if isinstance(value, str) and value:
+                                units.append({'id': len(units), 'path': [field, index], 'source': value, 'group': None, 'translation': None, 'kind': 'system_type'})
             if source.name == 'System.json' and isinstance(obj.get('terms'), dict):
                 terms = obj['terms']
                 for field in ('basic', 'commands', 'params'):
@@ -165,11 +174,12 @@ class Studio:
         identifier = uuid.uuid4().hex; folder = self.root / identifier; folder.mkdir(mode=0o700)
         (folder/'source.json').write_bytes(raw)
         state = {'id': identifier, 'source_name': source.name, 'source_sha256': sha(raw), 'message_rows': message_rows,
-                 'units': units, 'groups': groups, 'skipped_script_commands': skipped}
+                 'units': units, 'groups': groups, 'skipped_script_commands': skipped, 'include_system_types': include_system_types}
         self._save(folder, state)
         return {'draft_id': identifier, 'source_name': source.name, 'source_sha256': state['source_sha256'],
                 'units': len(units), 'message_groups': len(groups), 'skipped_script_commands': skipped,
-                'layout_status': 'configured' if message_rows else 'unknown; supply a measured row limit before layout validation'}
+                'layout_status': 'configured' if message_rows else 'unknown; supply a measured row limit before layout validation',
+                'system_type_notice': 'Opted-in type names may be used by custom scripts; inspect those scripts and test the game.' if include_system_types else 'System type names are excluded unless explicitly requested.'}
 
     def _save(self, folder, data):
         path = folder/'draft.json'; temporary = folder/('draft-'+uuid.uuid4().hex+'.tmp')
@@ -227,7 +237,8 @@ class Studio:
                 if rows > data['message_rows']: errors.append({'group': group['id'], 'error': 'message row limit exceeded', 'rows': rows})
         return {'structural_ok': not errors, 'errors': errors, 'translated': len(replacements), 'total': len(data['units']),
                 'layout_status': ('message-command row limit checked; system-text and pixel layout unverified' if data['groups'] else 'no message-command groups to check; system-text and pixel layout unverified') if data['message_rows'] else 'unknown; no row limit supplied',
-                'coverage': 'Message/choice commands, system terms/messages and selected database fields are extracted; scripts, other fields and graphics are not covered.'}
+                'coverage': 'Message/choice commands, system terms/messages and selected database fields are extracted; scripts, other fields and graphics are not covered.',
+                'system_type_notice': 'Opted-in type names may be used by custom scripts; inspect those scripts and test the game.' if data.get('include_system_types') else 'System type names are excluded unless explicitly requested.'}
 
     def export(self, draft_id):
         folder = self._draft(draft_id)

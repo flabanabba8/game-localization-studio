@@ -48,6 +48,19 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(output['switches'], data['switches']); self.assertEqual(output['variables'], data['variables'])
             self.assertEqual(source.read_bytes(), original)
 
+    def test_system_type_names_require_explicit_opt_in(self):
+        with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
+            source=Path(tmp)/'System.json'; data={'elements':['','Fire'],'weaponTypes':['','Sword'],'switches':['','Secret flag']}
+            source.write_text(json.dumps(data)); studio=Studio(Path(tmp)/'data')
+            normal=studio.inspect(str(source)); self.assertEqual(normal['units'],0)
+            opted=studio.inspect(str(source),include_system_types=True); self.assertIn('custom scripts',opted['system_type_notice'])
+            units=studio.get(opted['draft_id'])['units']; self.assertEqual({u['source'] for u in units},{'Fire','Sword'})
+            fire=next(u['id'] for u in units if u['source']=='Fire');studio.translate(opted['draft_id'],fire,'Feu')
+            report=studio.validate(opted['draft_id']);self.assertIn('custom scripts',report['system_type_notice'])
+            output=json.loads(Path(studio.export(opted['draft_id'])['path']).read_text())
+            self.assertEqual(output['elements'],['','Feu']);self.assertEqual(output['switches'],data['switches'])
+            with self.assertRaises(ValueError):studio.inspect(str(source),include_system_types='yes')
+
     def test_find_saved_draft_without_exposing_game_text(self):
         with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
             source = Path(tmp)/'Actors.json'
