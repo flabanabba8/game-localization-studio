@@ -226,8 +226,8 @@ class Studio:
                 rows = sum((replacements.get(tuple(path), locate(obj, path)).count('\n') + 1) for path in group['rows'])
                 if rows > data['message_rows']: errors.append({'group': group['id'], 'error': 'message row limit exceeded', 'rows': rows})
         return {'structural_ok': not errors, 'errors': errors, 'translated': len(replacements), 'total': len(data['units']),
-                'layout_status': 'row limit checked; pixel layout unverified' if data['message_rows'] else 'unknown; no row limit supplied',
-                'coverage': 'Message/choice commands and selected database fields are extracted; scripts, other fields and graphics are not covered.'}
+                'layout_status': ('message-command row limit checked; system-text and pixel layout unverified' if data['groups'] else 'no message-command groups to check; system-text and pixel layout unverified') if data['message_rows'] else 'unknown; no row limit supplied',
+                'coverage': 'Message/choice commands, system terms/messages and selected database fields are extracted; scripts, other fields and graphics are not covered.'}
 
     def export(self, draft_id):
         folder = self._draft(draft_id)

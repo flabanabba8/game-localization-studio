@@ -34,13 +34,14 @@ class StudioTests(unittest.TestCase):
             source = Path(tmp)/'System.json'
             data = {'terms': {'basic': ['Level', None, 'HP'], 'commands': ['Fight'], 'params': ['Attack'], 'messages': {'victory': '%1 won %2!', 'empty': ''}}, 'switches': ['', 'Internal switch'], 'variables': ['', 'Internal variable']}
             source.write_text(json.dumps(data)); original = source.read_bytes()
-            studio = Studio(Path(tmp)/'data'); draft = studio.inspect(str(source))['draft_id']; units = studio.get(draft)['units']
+            studio = Studio(Path(tmp)/'data'); draft = studio.inspect(str(source), message_rows=4)['draft_id']; units = studio.get(draft)['units']
             by_source = {unit['source']: unit['id'] for unit in units}
             self.assertEqual(set(by_source), {'Level', 'HP', 'Fight', 'Attack', '%1 won %2!'})
             with self.assertRaisesRegex(ValueError, 'preserve control tokens'):
                 studio.translate(draft, by_source['%1 won %2!'], '%1 wins!')
             studio.translate(draft, by_source['Fight'], 'Combat')
             studio.translate(draft, by_source['%1 won %2!'], '%2 pour %1 !')
+            self.assertIn('no message-command groups', studio.validate(draft)['layout_status'])
             output = json.loads(Path(studio.export(draft)['path']).read_text())
             self.assertEqual(output['terms']['commands'][0], 'Combat')
             self.assertEqual(output['terms']['messages']['victory'], '%2 pour %1 !')
