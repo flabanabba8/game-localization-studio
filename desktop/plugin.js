@@ -9,7 +9,7 @@ const button = (text, onClick, disabled = false, props = {}) => h('button', { st
 function Unit({ unit, save, busy }) {
   const [text, setText] = useState(unit.translation ?? '')
   useEffect(() => setText(unit.translation ?? ''), [unit.id, unit.translation])
-  return h('article', { style: card }, h('strong', null, `Unit ${unit.id}${unit.kind === 'database' ? ' · database' : unit.aliases ? ' · choice' : ' · message'}`),
+  return h('article', { style: card }, h('strong', null, `Unit ${unit.id}${unit.kind === 'database' ? ' · database' : unit.kind === 'system_term' ? ' · system text' : unit.aliases ? ' · choice' : ' · message'}`),
     h('p', null, unit.source), unit.blocked_reason && h('p', { role: 'note' }, unit.blocked_reason),
     h('label', null, 'Translation', h('textarea', { style: { ...field, display: 'block', width: '100%', minHeight: 70 }, value: text,
       disabled: busy || !!unit.blocked_reason, maxLength: 10000, onChange: e => setText(e.target.value) })),

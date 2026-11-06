@@ -10,7 +10,7 @@ export async function run(assert, document) {
     calls.push(body)
     switch (body.operation) {
       case 'localize_inspect': return { draft_id: id, source_name: 'Map001.json', units: 1, message_groups: 1, layout_status: 'unknown; no row limit' }
-      case 'localize_get': return { draft_id: id, units: [{ id: 0, source: 'Hello %1', translation, group: 0 }], total: 1, next_offset: null }
+      case 'localize_get': return { draft_id: id, units: [{ id: 0, source: 'Hello %1', translation, group: null, kind: 'system_term' }], total: 1, next_offset: null }
       case 'localize_translate': translation = body.arguments.text; return { saved: true }
       case 'localize_validate': return { structural_ok: true, errors: [], layout_status: 'unknown; no row limit supplied', coverage: 'Selected fields only' }
       case 'localize_export': return { path: '/tmp/translated.json' }
@@ -33,6 +33,7 @@ export async function run(assert, document) {
     await change(document.querySelector('input'), '/tmp/Map001.json')
     await act(async () => document.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
     assert.equal(calls.filter(c => c.operation === 'localize_export').length, 0)
+    assert.match(document.body.textContent, /system text/)
     await change(document.querySelector('textarea'), 'Bonjour %1')
     await click('Save translation')
     assert.equal(calls.find(c => c.operation === 'localize_translate').arguments.text, 'Bonjour %1')
@@ -41,5 +42,5 @@ export async function run(assert, document) {
     await click('Export translated copy')
     assert.equal(document.querySelector('details').open, false)
   } finally { await act(async () => root.unmount()) }
-  return { passed: true, checks: ['explicit import', 'translation editing', 'unknown layout is visible', 'explicit export', 'file path collapsed', 'timer cleanup'] }
+  return { passed: true, checks: ['explicit import', 'system text label', 'translation editing', 'unknown layout is visible', 'explicit export', 'file path collapsed', 'timer cleanup'] }
 }
