@@ -17,7 +17,7 @@ is bundled. License: GPL-3.0-or-later.
 
 Selected database coverage includes actor names/nicknames/profiles, class names,
 skill names/descriptions/messages, item/equipment names/descriptions, enemy
-names, state names/messages, the system title/currency and map display names.
+names, state names/messages, the system title/currency, system terms and messages, and map display names. System terms cover the `basic`, `commands`, `params` and `messages` fields documented in [RPG Maker MV’s System::Terms format](https://rpgmakerofficial.com/product/MV_Help/page/03_52.html); `%1`-style message placeholders are preserved.
 Internal notes, file names, variable names and numeric IDs are not translated.
 
 Choice translations also update matching branch labels. If an original branch

@@ -29,6 +29,24 @@ class StudioTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'changed'): Studio(Path(tmp)/'data').inspect(str(source))
             self.assertEqual(list((Path(tmp)/'data').iterdir()), [])
 
+    def test_system_terms_and_messages_preserve_placeholders_and_internal_names(self):
+        with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
+            source = Path(tmp)/'System.json'
+            data = {'terms': {'basic': ['Level', None, 'HP'], 'commands': ['Fight'], 'params': ['Attack'], 'messages': {'victory': '%1 won %2!', 'empty': ''}}, 'switches': ['', 'Internal switch'], 'variables': ['', 'Internal variable']}
+            source.write_text(json.dumps(data)); original = source.read_bytes()
+            studio = Studio(Path(tmp)/'data'); draft = studio.inspect(str(source))['draft_id']; units = studio.get(draft)['units']
+            by_source = {unit['source']: unit['id'] for unit in units}
+            self.assertEqual(set(by_source), {'Level', 'HP', 'Fight', 'Attack', '%1 won %2!'})
+            with self.assertRaisesRegex(ValueError, 'preserve control tokens'):
+                studio.translate(draft, by_source['%1 won %2!'], '%1 wins!')
+            studio.translate(draft, by_source['Fight'], 'Combat')
+            studio.translate(draft, by_source['%1 won %2!'], '%2 pour %1 !')
+            output = json.loads(Path(studio.export(draft)['path']).read_text())
+            self.assertEqual(output['terms']['commands'][0], 'Combat')
+            self.assertEqual(output['terms']['messages']['victory'], '%2 pour %1 !')
+            self.assertEqual(output['switches'], data['switches']); self.assertEqual(output['variables'], data['variables'])
+            self.assertEqual(source.read_bytes(), original)
+
     def test_find_saved_draft_without_exposing_game_text(self):
         with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
             source = Path(tmp)/'Actors.json'

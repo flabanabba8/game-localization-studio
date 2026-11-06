@@ -117,6 +117,19 @@ class Studio:
                 value = obj.get(field)
                 if isinstance(value, str) and value:
                     units.append({'id': len(units), 'path': [field], 'source': value, 'group': None, 'translation': None, 'kind': 'database'})
+            if source.name == 'System.json' and isinstance(obj.get('terms'), dict):
+                terms = obj['terms']
+                for field in ('basic', 'commands', 'params'):
+                    values = terms.get(field)
+                    if isinstance(values, list):
+                        for index, value in enumerate(values):
+                            if isinstance(value, str) and value:
+                                units.append({'id': len(units), 'path': ['terms', field, index], 'source': value, 'group': None, 'translation': None, 'kind': 'system_term'})
+                messages = terms.get('messages')
+                if isinstance(messages, dict):
+                    for key, value in messages.items():
+                        if isinstance(value, str) and value:
+                            units.append({'id': len(units), 'path': ['terms', 'messages', key], 'source': value, 'group': None, 'translation': None, 'kind': 'system_term'})
         for base, commands in command_lists(obj):
             current = None
             for index, cmd in enumerate(commands):
