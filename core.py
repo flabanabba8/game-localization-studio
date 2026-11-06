@@ -3,12 +3,12 @@ import hashlib
 import json
 import os
 import stat
-import fcntl
 from contextlib import contextmanager
 from collections import Counter
 from pathlib import Path
 import re
 import uuid
+from . import locking
 
 
 TOKENS = re.compile(r'\\\\|\\[A-Za-z]+(?:\[[^\]\r\n]*\])?|\\[.$|!><^{}]|%\d+')
@@ -74,9 +74,7 @@ class Studio:
 
     @contextmanager
     def _lock(self, folder):
-        with (folder/'draft.lock').open('a') as handle:
-            try: fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError: raise RuntimeError('This draft is busy; wait for the current operation') from None
+        with locking.exclusive_lock(folder/'draft.lock', 'This draft is busy; wait for the current operation'):
             yield
 
     def inspect(self, source_path, message_rows=None, include_system_types=False):

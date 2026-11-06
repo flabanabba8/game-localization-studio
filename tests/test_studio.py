@@ -14,6 +14,14 @@ from localize_test.core import Studio
 
 
 class StudioTests(unittest.TestCase):
+    def test_busy_draft_lock_refuses_another_owner(self):
+        with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
+            source=Path(tmp)/'Actors.json';source.write_text(json.dumps([None, {'name':'Original'}]))
+            studio=Studio(Path(tmp)/'data');ident=studio.inspect(str(source))['draft_id'];folder=studio._draft(ident)
+            with studio._lock(folder):
+                with self.assertRaisesRegex(RuntimeError,'busy'):
+                    with studio._lock(folder):pass
+
     def test_new_draft_and_export_are_private_under_permissive_umask(self):
         with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
             source = Path(tmp)/'Actors.json'; source.write_text(json.dumps([None, {'name':'Original'}]))

@@ -32,5 +32,8 @@ A CPU-only integration fixture used the official RPG Maker MV event interpreter 
 Exports are placed in a unique private directory under their original JSON filename so the correct RPG Maker database type is retained when reimporting. The plugin can reopen its own exports without allowing unrelated Hermes configuration files as sources.
 On POSIX systems, new source copies, drafts and exports use owner-only file
 permissions. Existing files are not retroactively changed.
+Draft locking supports POSIX and Windows. Focused native Windows tests covered
+synthetic system terms and choice branches; Windows ACLs, real games and visual
+layout were not checked.
 
 A separate CPU-only fixture used the [official MV TextManager source](https://github.com/rpgtkoolmv/corescript/blob/182e31449707ba7e406db0485c44c2a9d11e2dcd/js/rpg_managers/TextManager.js) to read translated synthetic system terms and a placeholder-bearing message. The source is not bundled; this is not an in-game or layout test.
