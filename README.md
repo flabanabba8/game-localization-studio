@@ -30,5 +30,7 @@ may move to accommodate grammar.
 A CPU-only integration fixture used the official RPG Maker MV event interpreter with a stubbed message system: translated message lines and choices were consumed, and both choice branches behaved as expected. It did not launch a game or verify visual layout. The interpreter is not bundled with this plugin.
 
 Exports are placed in a unique private directory under their original JSON filename so the correct RPG Maker database type is retained when reimporting. The plugin can reopen its own exports without allowing unrelated Hermes configuration files as sources.
+On POSIX systems, new source copies, drafts and exports use owner-only file
+permissions. Existing files are not retroactively changed.
 
 A separate CPU-only fixture used the [official MV TextManager source](https://github.com/rpgtkoolmv/corescript/blob/182e31449707ba7e406db0485c44c2a9d11e2dcd/js/rpg_managers/TextManager.js) to read translated synthetic system terms and a placeholder-bearing message. The source is not bundled; this is not an in-game or layout test.

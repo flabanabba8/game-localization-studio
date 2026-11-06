@@ -14,6 +14,19 @@ from localize_test.core import Studio
 
 
 class StudioTests(unittest.TestCase):
+    def test_new_draft_and_export_are_private_under_permissive_umask(self):
+        with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
+            source = Path(tmp)/'Actors.json'; source.write_text(json.dumps([None, {'name':'Original'}]))
+            studio = Studio(Path(tmp)/'data'); previous = os.umask(0)
+            try:
+                ident = studio.inspect(str(source))['draft_id']
+                folder = Path(tmp)/'data'/ident
+                studio.translate(ident, 0, 'Translated')
+                output = Path(studio.export(ident)['path'])
+                for path in (folder/'source.json', folder/'draft.json', output):
+                    self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            finally:
+                os.umask(previous)
     def test_import_rejects_atomic_source_replacement(self):
         with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
             source = Path(tmp)/'Actors.json'; source.write_text('[null]')

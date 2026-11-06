@@ -172,7 +172,8 @@ class Studio:
                     if code in (355, 356, 357, 655): skipped += 1
         if len(units) > 20000: raise ValueError('File exceeds 20,000 translatable lines')
         identifier = uuid.uuid4().hex; folder = self.root / identifier; folder.mkdir(mode=0o700)
-        (folder/'source.json').write_bytes(raw)
+        with os.fdopen(os.open(folder/'source.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as stream:
+            stream.write(raw)
         state = {'id': identifier, 'source_name': source.name, 'source_sha256': sha(raw), 'message_rows': message_rows,
                  'units': units, 'groups': groups, 'skipped_script_commands': skipped, 'include_system_types': include_system_types}
         self._save(folder, state)
@@ -183,7 +184,12 @@ class Studio:
 
     def _save(self, folder, data):
         path = folder/'draft.json'; temporary = folder/('draft-'+uuid.uuid4().hex+'.tmp')
-        temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8'); temporary.replace(path)
+        try:
+            with os.fdopen(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w', encoding='utf-8') as stream:
+                json.dump(data, stream, ensure_ascii=False, indent=2)
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def get(self, draft_id, offset=0, limit=50):
         if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0 or isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100: raise ValueError('Use nonnegative offset and limit 1–100')
@@ -256,5 +262,6 @@ class Studio:
             out_dir = folder/'exports'/uuid.uuid4().hex
             out_dir.mkdir(parents=True, mode=0o700)
             output = out_dir/source_name
-            output.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding='utf-8')
+            with os.fdopen(os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w', encoding='utf-8') as stream:
+                json.dump(obj, stream, ensure_ascii=False, indent=2)
             return {'path': str(output), 'source_sha256': data['source_sha256'], 'output_sha256': sha(output.read_bytes()), **result}
