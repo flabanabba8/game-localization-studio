@@ -1,0 +1,224 @@
+"""Guarded, source-addressed RPG Maker MV/MZ JSON translation drafts."""
+import hashlib
+import json
+import fcntl
+from contextlib import contextmanager
+from collections import Counter
+from pathlib import Path
+import re
+import uuid
+
+
+TOKENS = re.compile(r'\\\\|\\[A-Za-z]+(?:\[[^\]\r\n]*\])?|\\[.$|!><^{}]|%\d+')
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def tokens(text):
+    return Counter(TOKENS.findall(text))
+
+
+def compatible_controls(source, translated):
+    before, after = TOKENS.findall(source), TOKENS.findall(translated)
+    if Counter(before) != Counter(after):
+        return False
+    # Variables, actor/party names, icons and positional substitutions can move
+    # with grammar; formatting and wait controls retain their original order.
+    def stateful(items):
+        return [token for token in items if not (
+            token.startswith('%') or re.fullmatch(r'\\[VNPGI](?:\[[^\]]*\])?', token, re.I))]
+    return stateful(before) == stateful(after)
+
+
+DATABASE_FIELDS = {
+    'Actors.json': ('name', 'nickname', 'profile'),
+    'Classes.json': ('name',),
+    'Skills.json': ('name', 'description', 'message1', 'message2'),
+    'Items.json': ('name', 'description'),
+    'Weapons.json': ('name', 'description'),
+    'Armors.json': ('name', 'description'),
+    'Enemies.json': ('name',),
+    'States.json': ('name', 'message1', 'message2', 'message3', 'message4'),
+}
+
+
+def command_lists(obj, path=()):
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if key == 'list' and isinstance(value, list) and all(isinstance(x, dict) and 'code' in x for x in value):
+                yield path + (key,), value
+            else:
+                yield from command_lists(value, path + (key,))
+    elif isinstance(obj, list):
+        for index, value in enumerate(obj): yield from command_lists(value, path + (index,))
+
+
+def locate(obj, path):
+    for part in path: obj = obj[part]
+    return obj
+
+
+class Studio:
+    def __init__(self, root):
+        self.root = Path(root).resolve(); self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+    def _draft(self, draft_id):
+        if not isinstance(draft_id, str) or not re.fullmatch('[0-9a-f]{32}', draft_id): raise ValueError('Invalid draft ID')
+        folder = self.root / draft_id
+        if not folder.is_dir() or folder.is_symlink(): raise ValueError('Unknown draft')
+        return folder
+
+    @contextmanager
+    def _lock(self, folder):
+        with (folder/'draft.lock').open('a') as handle:
+            try: fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError: raise RuntimeError('This draft is busy; wait for the current operation') from None
+            yield
+
+    def inspect(self, source_path, message_rows=None):
+        source = Path(source_path).expanduser()
+        if not source.is_absolute() or source.is_symlink() or source.suffix.lower() != '.json': raise ValueError('Choose an absolute RPG Maker JSON file path')
+        original_parts = source.parts
+        source = source.resolve(strict=True)
+        private = ('.ssh', '.gnupg', '.aws', '.azure', '.codex', '.docker', '.kube', '.pki', '.config')
+        own_output = source.is_relative_to(self.root)
+        profile_home = self.root.parent.parent if self.root.parent.name == 'plugin-data' else None
+        protected = '.hermes' in original_parts or '.hermes' in source.parts or (profile_home is not None and source.is_relative_to(profile_home))
+        if any(p in private for p in (*original_parts, *source.parts)) or protected and not own_output:
+            raise ValueError('Credential/configuration directories are not game data')
+        if not source.is_file() or source.stat().st_size > 8 * 1024 * 1024: raise ValueError('Game JSON must be a regular file up to 8 MiB')
+        if message_rows is not None and (isinstance(message_rows, bool) or not isinstance(message_rows, int) or not 1 <= message_rows <= 20): raise ValueError('Message rows must be an integer between 1 and 20')
+        raw = source.read_bytes(); obj = json.loads(raw.decode('utf-8-sig'))
+        units, groups, skipped = [], [], 0
+        if source.name in DATABASE_FIELDS and isinstance(obj, list):
+            for index, item in enumerate(obj):
+                if not isinstance(item, dict): continue
+                for field in DATABASE_FIELDS[source.name]:
+                    value = item.get(field)
+                    if isinstance(value, str) and value:
+                        units.append({'id': len(units), 'path': [index, field], 'source': value, 'group': None, 'translation': None, 'kind': 'database'})
+        if isinstance(obj, dict):
+            fields = ('gameTitle', 'currencyUnit') if source.name == 'System.json' else ('displayName',) if re.fullmatch(r'Map\d{3,}\.json', source.name) else ()
+            for field in fields:
+                value = obj.get(field)
+                if isinstance(value, str) and value:
+                    units.append({'id': len(units), 'path': [field], 'source': value, 'group': None, 'translation': None, 'kind': 'database'})
+        for base, commands in command_lists(obj):
+            current = None
+            for index, cmd in enumerate(commands):
+                code, params = cmd.get('code'), cmd.get('parameters', [])
+                if code == 101:
+                    current = {'id': len(groups), 'rows': []}; groups.append(current)
+                elif code == 401 and isinstance(params, list) and params and isinstance(params[0], str):
+                    if current is None: current = {'id': len(groups), 'rows': []}; groups.append(current)
+                    address = list(base + (index, 'parameters', 0)); current['rows'].append(address)
+                    if params[0]: units.append({'id': len(units), 'path': address, 'source': params[0], 'group': current['id'], 'translation': None})
+                elif code == 102 and isinstance(params, list) and params and isinstance(params[0], list):
+                    current = None
+                    indent = cmd.get('indent')
+                    for choice_index, choice in enumerate(params[0]):
+                        if not isinstance(choice, str): continue
+                        aliases, mismatch, found_end = [], False, False
+                        for branch_index in range(index + 1, len(commands)):
+                            branch = commands[branch_index]
+                            if branch.get('indent') == indent and branch.get('code') == 404:
+                                found_end = True; break
+                            if branch.get('indent') == indent and branch.get('code') == 102: break
+                            branch_params = branch.get('parameters', [])
+                            if branch.get('indent') == indent and branch.get('code') == 402 and isinstance(branch_params, list) and len(branch_params) >= 2 and branch_params[0] == choice_index:
+                                if branch_params[1] == choice: aliases.append(list(base + (branch_index, 'parameters', 1)))
+                                else: mismatch = True
+                        units.append({'id': len(units), 'path': list(base + (index, 'parameters', 0, choice_index)),
+                                      'source': choice, 'group': None, 'translation': None, 'aliases': aliases,
+                                      'blocked_reason': 'Choice branch is incomplete or its label differs; inspect it before changing' if mismatch or not found_end or not aliases else None})
+                else:
+                    current = None
+                    if code in (355, 356, 357, 655): skipped += 1
+        if len(units) > 20000: raise ValueError('File exceeds 20,000 translatable lines')
+        identifier = uuid.uuid4().hex; folder = self.root / identifier; folder.mkdir(mode=0o700)
+        (folder/'source.json').write_bytes(raw)
+        state = {'id': identifier, 'source_name': source.name, 'source_sha256': sha(raw), 'message_rows': message_rows,
+                 'units': units, 'groups': groups, 'skipped_script_commands': skipped}
+        self._save(folder, state)
+        return {'draft_id': identifier, 'source_name': source.name, 'source_sha256': state['source_sha256'],
+                'units': len(units), 'message_groups': len(groups), 'skipped_script_commands': skipped,
+                'layout_status': 'configured' if message_rows else 'unknown; supply a measured row limit before layout validation'}
+
+    def _save(self, folder, data):
+        path = folder/'draft.json'; temporary = folder/('draft-'+uuid.uuid4().hex+'.tmp')
+        temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8'); temporary.replace(path)
+
+    def get(self, draft_id, offset=0, limit=50):
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0 or isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100: raise ValueError('Use nonnegative offset and limit 1–100')
+        data = json.loads((self._draft(draft_id)/'draft.json').read_text())
+        return {'draft_id': draft_id, 'units': data['units'][offset:offset+limit], 'total': len(data['units']),
+                'next_offset': offset+limit if offset+limit < len(data['units']) else None}
+
+    def list_drafts(self):
+        folders = sorted(p for p in self.root.iterdir() if re.fullmatch('[0-9a-f]{32}', p.name))
+        if len(folders) > 1000: raise ValueError('More than 1,000 drafts; narrow the workspace first')
+        drafts, unreadable = [], 0
+        for folder in folders:
+            try:
+                folder = self._draft(folder.name)
+                state_path = folder/'draft.json'
+                if state_path.is_symlink(): raise ValueError('Invalid draft state')
+                state = json.loads(state_path.read_text(encoding='utf-8'))
+                units = state['units']
+                if not isinstance(units, list) or state['id'] != folder.name: raise ValueError('Invalid draft state')
+                drafts.append({'draft_id': folder.name, 'source_name': state['source_name'], 'units': len(units),
+                               'translated': sum(u.get('translation') is not None for u in units)})
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                unreadable += 1
+        return {'drafts': drafts, 'unreadable_records': unreadable}
+
+    def translate(self, draft_id, unit_id, text):
+        if isinstance(unit_id, bool) or not isinstance(unit_id, int) or not isinstance(text, str) or len(text) > 10000: raise ValueError('Invalid unit or translation')
+        folder = self._draft(draft_id)
+        with self._lock(folder):
+            data = json.loads((folder/'draft.json').read_text())
+            if not 0 <= unit_id < len(data['units']): raise ValueError('Unknown unit')
+            unit = data['units'][unit_id]
+            if unit.get('blocked_reason'): raise ValueError(unit['blocked_reason'])
+            if not compatible_controls(unit['source'], text): raise ValueError('Translation must preserve control tokens, placeholders and formatting-control order')
+            unit['translation'] = text; self._save(folder, data)
+        return {'unit_id': unit_id, 'saved': True}
+
+    def validate(self, draft_id):
+        folder = self._draft(draft_id); data = json.loads((folder/'draft.json').read_text()); raw = (folder/'source.json').read_bytes()
+        if sha(raw) != data['source_sha256']: raise ValueError('Stored source bytes changed; refusing output')
+        obj = json.loads(raw.decode('utf-8-sig')); replacements = {tuple(u['path']): u['translation'] for u in data['units'] if u['translation'] is not None}
+        errors = []
+        for unit in data['units']:
+            if locate(obj, unit['path']) != unit['source']: errors.append({'unit': unit['id'], 'error': 'source changed'})
+            if any(locate(obj, alias) != unit['source'] for alias in unit.get('aliases', [])): errors.append({'unit': unit['id'], 'error': 'choice branch label changed'})
+            if unit['translation'] is not None and not compatible_controls(unit['source'], unit['translation']): errors.append({'unit': unit['id'], 'error': 'control tokens or formatting-control order changed'})
+            if unit['translation'] is not None and unit.get('blocked_reason'): errors.append({'unit': unit['id'], 'error': unit['blocked_reason']})
+        if data['message_rows']:
+            for group in data['groups']:
+                rows = sum((replacements.get(tuple(path), locate(obj, path)).count('\n') + 1) for path in group['rows'])
+                if rows > data['message_rows']: errors.append({'group': group['id'], 'error': 'message row limit exceeded', 'rows': rows})
+        return {'structural_ok': not errors, 'errors': errors, 'translated': len(replacements), 'total': len(data['units']),
+                'layout_status': 'row limit checked; pixel layout unverified' if data['message_rows'] else 'unknown; no row limit supplied',
+                'coverage': 'Message/choice commands and selected database fields are extracted; scripts, other fields and graphics are not covered.'}
+
+    def export(self, draft_id):
+        folder = self._draft(draft_id)
+        with self._lock(folder):
+            result = self.validate(draft_id)
+            if not result['structural_ok']: raise ValueError('Validation failed; review errors before export')
+            data = json.loads((folder/'draft.json').read_text()); raw = (folder/'source.json').read_bytes(); obj = json.loads(raw.decode('utf-8-sig'))
+            for unit in data['units']:
+                if unit['translation'] is not None:
+                    locate(obj, unit['path'][:-1])[unit['path'][-1]] = unit['translation']
+                    for alias in unit.get('aliases', []): locate(obj, alias[:-1])[alias[-1]] = unit['translation']
+            source_name = data['source_name']
+            if not isinstance(source_name, str) or Path(source_name).name != source_name or '/' in source_name or '\\' in source_name or not source_name.lower().endswith('.json'):
+                raise ValueError('Invalid source filename in draft')
+            out_dir = folder/'exports'/uuid.uuid4().hex
+            out_dir.mkdir(parents=True, mode=0o700)
+            output = out_dir/source_name
+            output.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding='utf-8')
+            return {'path': str(output), 'source_sha256': data['source_sha256'], 'output_sha256': sha(output.read_bytes()), **result}
