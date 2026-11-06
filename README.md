@@ -3,13 +3,13 @@
 Development prototype for RPG Maker MV/MZ JSON. Import a source file, translate
 individually addressed message lines, choices and selected database fields, check control tokens and
 an explicitly supplied message-row limit, and export a new JSON file. The
-original is never overwritten. Drafts are local to the active Hermes profile.
+original is never overwritten; a source changed or replaced during import is rejected. Drafts are local to the active Hermes profile.
 List saved drafts to recover their IDs and translation counts without showing game text.
 
 This is not a complete game localization system yet. Other database fields,
 scripts, images and pixel-accurate layout are not covered. A structural pass is
 not proof of in-game rendering. The row limit is supplied by the user for the
-actual game; if omitted, layout status is unknown. Empty message rows count.
+actual game; if omitted, layout status is unknown. It applies to message-command groups, not system menus or messages. Empty message rows count, and system labels still need in-game layout review.
 
 The plugin reads the explicitly selected JSON file and returns game text to
 Hermes. It uses no network, credentials, or model calls of its own. No game data
