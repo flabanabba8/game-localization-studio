@@ -1,5 +1,7 @@
 # Verification
 
+- A standalone headless browser fixture with approximate theme variables was inspected at 375 px. The initially disabled control now appears distinct and the page had no horizontal overflow; the Desktop flow test passed. This is not native Hermes Desktop or an in-game layout review.
+
 - Mixed-case private-directory boundaries were checked using synthetic paths on Linux and native Windows; no real credentials were used.
 
 - Sixteen Linux unit tests passed, including owner-only POSIX permissions for new source copies, updated drafts and exports with a permissive umask, token preservation, branch safety, busy locking and changed-source rejection. Hermes plugin validation passed without warnings.
