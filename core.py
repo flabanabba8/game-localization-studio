@@ -86,9 +86,9 @@ class Studio:
         source = source.resolve(strict=True)
         private = ('.ssh', '.gnupg', '.aws', '.azure', '.codex', '.docker', '.kube', '.pki', '.config')
         own_output = source.is_relative_to(self.root)
-        profile_home = self.root.parent.parent if self.root.parent.name == 'plugin-data' else None
-        protected = '.hermes' in original_parts or '.hermes' in source.parts or (profile_home is not None and source.is_relative_to(profile_home))
-        if any(p in private for p in (*original_parts, *source.parts)) or protected and not own_output:
+        profile_home = self.root.parent.parent if self.root.parent.name.casefold() == 'plugin-data' else None
+        protected = any(p.casefold() == '.hermes' for p in (*original_parts, *source.parts)) or (profile_home is not None and source.is_relative_to(profile_home))
+        if any(p.casefold() in private for p in (*original_parts, *source.parts)) or protected and not own_output:
             raise ValueError('Credential/configuration directories are not game data')
         if message_rows is not None and (isinstance(message_rows, bool) or not isinstance(message_rows, int) or not 1 <= message_rows <= 20): raise ValueError('Message rows must be an integer between 1 and 20')
         fd = os.open(source, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0))

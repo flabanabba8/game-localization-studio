@@ -122,6 +122,13 @@ class StudioTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Credential/configuration'):
                 studio.inspect(str(source))
 
+    def test_mixed_case_private_configuration_stays_blocked(self):
+        with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
+            for name in ('.CoDeX','.HeRmEs'):
+                folder=Path(tmp)/name;folder.mkdir();source=folder/'Actors.json';source.write_text('[null]')
+                with self.assertRaisesRegex(ValueError,'Credential/configuration'):
+                    Studio(Path(tmp)/'data').inspect(str(source))
+
     def test_tampered_source_copy_refuses_export(self):
         with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
             source = Path(tmp)/'Map001.json'
