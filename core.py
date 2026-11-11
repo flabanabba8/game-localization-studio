@@ -22,6 +22,11 @@ def tokens(text):
     return Counter(TOKENS.findall(text))
 
 
+def visible_width(text):
+    """Characters a player sees on one message row: control codes such as \\c[2] or \\i[68] take no space."""
+    return max((len(TOKENS.sub('', line)) for line in str(text).split('\n')), default=0)
+
+
 def compatible_controls(source, translated):
     before, after = TOKENS.findall(source), TOKENS.findall(translated)
     if Counter(before) != Counter(after):
@@ -77,7 +82,7 @@ class Studio:
         with locking.exclusive_lock(folder/'draft.lock', 'This draft is busy; wait for the current operation'):
             yield
 
-    def inspect(self, source_path, message_rows=None, include_system_types=False):
+    def inspect(self, source_path, message_rows=None, include_system_types=False, message_columns=None):
         if type(include_system_types) is not bool: raise ValueError('include_system_types must be boolean')
         source = Path(source_path).expanduser()
         if not source.is_absolute() or source.is_symlink() or source.suffix.lower() != '.json': raise ValueError('Choose an absolute RPG Maker JSON file path')
@@ -90,6 +95,7 @@ class Studio:
         protected = any(p.casefold() == '.hermes' for p in (*original_parts, *source.parts)) or (profile_home is not None and source.is_relative_to(profile_home))
         if any(p.casefold() in private for p in (*original_parts, *source.parts)) or protected and not own_output:
             raise ValueError('Credential/configuration directories are not game data')
+        if message_columns is not None and (isinstance(message_columns, bool) or not isinstance(message_columns, int) or not 10 <= message_columns <= 200): raise ValueError('Message columns must be an integer between 10 and 200')
         if message_rows is not None and (isinstance(message_rows, bool) or not isinstance(message_rows, int) or not 1 <= message_rows <= 20): raise ValueError('Message rows must be an integer between 1 and 20')
         fd = os.open(source, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0))
         with os.fdopen(fd, 'rb') as stream:
@@ -172,11 +178,13 @@ class Studio:
         identifier = uuid.uuid4().hex; folder = self.root / identifier; folder.mkdir(mode=0o700)
         with os.fdopen(os.open(folder/'source.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as stream:
             stream.write(raw)
-        state = {'id': identifier, 'source_name': source.name, 'source_sha256': sha(raw), 'message_rows': message_rows,
+        longest = max((visible_width(u['source']) for u in units if u['group'] is not None), default=0)
+        row_chars = message_columns or (longest if longest >= 10 else None)  # the game author already fitted every original row on screen: translated rows must not be wider than the widest original one
+        state = {'id': identifier, 'source_name': source.name, 'source_sha256': sha(raw), 'message_rows': message_rows, 'row_chars': row_chars, 'row_chars_source': 'given' if message_columns else 'widest original row',
                  'units': units, 'groups': groups, 'skipped_script_commands': skipped, 'include_system_types': include_system_types}
         self._save(folder, state)
         return {'draft_id': identifier, 'source_name': source.name, 'source_sha256': state['source_sha256'],
-                'units': len(units), 'message_groups': len(groups), 'skipped_script_commands': skipped,
+                'units': len(units), 'message_groups': len(groups), 'skipped_script_commands': skipped, 'row_width_limit_chars': row_chars,
                 'layout_status': 'configured' if message_rows else 'unknown; supply a measured row limit before layout validation',
                 'system_type_notice': 'Opted-in type names may be used by custom scripts; inspect those scripts and test the game.' if include_system_types else 'System type names are excluded unless explicitly requested.'}
 
@@ -235,6 +243,10 @@ class Studio:
             if any(locate(obj, alias) != unit['source'] for alias in unit.get('aliases', [])): errors.append({'unit': unit['id'], 'error': 'choice branch label changed'})
             if unit['translation'] is not None and not compatible_controls(unit['source'], unit['translation']): errors.append({'unit': unit['id'], 'error': 'control tokens or formatting-control order changed'})
             if unit['translation'] is not None and unit.get('blocked_reason'): errors.append({'unit': unit['id'], 'error': unit['blocked_reason']})
+        if data.get('row_chars'):
+            for unit in data['units']:
+                if unit['translation'] is not None and unit['group'] is not None and visible_width(unit['translation']) > data['row_chars']:
+                    errors.append({'unit': unit['id'], 'error': 'row wider than the message box estimate', 'visible_chars': visible_width(unit['translation']), 'limit_chars': data['row_chars'], 'hint': 'Split it across rows (one row per line, within the row limit) or shorten it; the limit is the widest original row.'})
         if data['message_rows']:
             for group in data['groups']:
                 rows = sum((replacements.get(tuple(path), locate(obj, path)).count('\n') + 1) for path in group['rows'])

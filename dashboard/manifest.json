@@ -1,7 +1,7 @@
 {
   "name": "game-localization-studio",
   "label": "Game Localization Studio",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Review and validate source-addressed RPG Maker translation drafts.",
   "api": "plugin_api.py"
 }

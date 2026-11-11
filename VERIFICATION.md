@@ -8,3 +8,11 @@
 - Native Windows Python 3.14 translated and exported synthetic system terms and a choice branch, preserved the original source, and refused a competing process holding the draft lock. Windows ACLs and real game layout were not checked.
 - The pinned official RPG Maker MV TextManager fixture consumed translated synthetic terms after the permission change. Earlier event-interpreter and Desktop flows passed with synthetic data; no actual game or visual layout was tested.
 - Existing files are not retroactively chmodded. Other database fields, scripts, pixel layout, Windows, a reviewed demonstration and a complete publication audit remain open.
+
+## 0.2.0 (2026-11-11)
+
+New offline test: a translated row wider than the widest original row is caught, export is refused, and a shortened row passes. The limit is an estimate of box width, not a pixel measurement.
+
+## 0.2.1 (2026-11-11)
+
+Text-only skill change after a live run asked for a path that was already in the folder.

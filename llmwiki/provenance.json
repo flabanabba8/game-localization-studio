@@ -1,0 +1,74 @@
+{
+  "curated": "2026-11-09",
+  "status": "source-derived, not a new live verification",
+  "sources": [
+    {
+      "package_path": "README.md",
+      "sha256": "3a9d0c79db22fcdde0fd35ec9df0ea15102363fcbdb52054d4001c0394c671e7"
+    },
+    {
+      "package_path": "VERIFICATION.md",
+      "sha256": "4190b11d868e7179aa6f878229e0627e576974b1f51d98457e06a021ac568f10"
+    },
+    {
+      "package_path": "__init__.py",
+      "sha256": "1ecd52dbb2deb4e8d0d547aafb311c61776bac6d9e1ddf90e62c83394b86b125"
+    },
+    {
+      "package_path": "core.py",
+      "sha256": "9bf66a420187914db3ce8ec022a7379b4c5e0f9775e4a6bcf155b29d033b6fa4"
+    },
+    {
+      "package_path": "dashboard/plugin_api.py",
+      "sha256": "63e1559946bce15e0185a2836833b2e9798028a1ca47467c7894c0563bd979f2"
+    },
+    {
+      "package_path": "locking.py",
+      "sha256": "84ec33209e63a2b15acf7972648f41234d98ba81b704c0268ee36df13c56cd6e"
+    },
+    {
+      "package_path": "plugin.yaml",
+      "sha256": "84104a1698b8b12ff2d3c60f45afba990d5a391e62c17cb30f0bd37cfd9e0187"
+    },
+    {
+      "package_path": "skills/game-localization-studio/SKILL.md",
+      "sha256": "6101aee79b0ddcd12d8014ee53bddeb0e7ab9633801e4a5309f351200ccf96c7"
+    },
+    {
+      "package_path": "tests/test_studio.py",
+      "sha256": "ec4b10093d5e8ad25732e1b4062ef208249954b909800d22a3ae608945a63d62"
+    }
+  ],
+  "credentials_or_private_installations_read": false,
+  "quality_review": {
+    "date": "2026-11-09",
+    "method": "main-session source review; schema registration only, no business handlers or new live tests",
+    "references": [
+      {
+        "package_path": "README.md",
+        "sha256": "3a9d0c79db22fcdde0fd35ec9df0ea15102363fcbdb52054d4001c0394c671e7"
+      },
+      {
+        "package_path": "plugin.yaml",
+        "sha256": "84104a1698b8b12ff2d3c60f45afba990d5a391e62c17cb30f0bd37cfd9e0187"
+      },
+      {
+        "package_path": "llmwiki/task-guide.md",
+        "sha256": "aa12230186eea1c724445698e99dbb8c513e1063b24d35165fbb1cd4fc66727a"
+      },
+      {
+        "package_path": "llmwiki/contracts.json",
+        "sha256": "e97ee5b3a584c9753d33cb301501d4d11b0f0e4ba2730a7f044b7052b9c43343"
+      }
+    ],
+    "scope": [
+      "setup decisions",
+      "worked task flow",
+      "failure diagnosis",
+      "acceptance limits",
+      "actual tool schema alignment",
+      "startup discovery",
+      "local reference resolution"
+    ]
+  }
+}

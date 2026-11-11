@@ -6,6 +6,15 @@ an explicitly supplied message-row limit, and export a new JSON file. The
 original is never overwritten; a source changed or replaced during import is rejected. Drafts are local to the active Hermes profile.
 List saved drafts to recover their IDs and translation counts without showing game text.
 
+**At a glance**
+
+- **Install:** `hermes plugins install flabanabba8/game-localization-studio`, then `hermes plugins enable game-localization-studio`.
+- **Needs:** Hermes 0.22 or later and RPG Maker data files you are allowed to translate. Hermes itself does the translating; no key or model is required by the plugin.
+- **Internet:** Nothing: no network calls, credentials or model calls of its own.
+- **Limits:** Linux is the only platform checked. It handles RPG Maker message text only, protects control codes and row budgets, and writes translation drafts rather than editing your game in place. No game data is included.
+- **Credits:** No third-party code or assets are bundled. Licence: GPL-3.0-or-later.
+- **AI assistance:** Written with AI coding assistants (Anthropic Claude and OpenAI Codex agents) under the maintainer's direction; what was actually tested is listed in VERIFICATION.md.
+
 This is not a complete game localization system yet. Other database fields,
 scripts, images and pixel-accurate layout are not covered. A structural pass is
 not proof of in-game rendering. The row limit is supplied by the user for the
@@ -37,3 +46,12 @@ synthetic system terms and choice branches; Windows ACLs, real games and visual
 layout were not checked.
 
 A separate CPU-only fixture used the [official MV TextManager source](https://github.com/rpgtkoolmv/corescript/blob/182e31449707ba7e406db0485c44c2a9d11e2dcd/js/rpg_managers/TextManager.js) to read translated synthetic system terms and a placeholder-bearing message. The source is not bundled; this is not an in-game or layout test.
+
+## 0.2.0 (2026-11-11)
+
+- `localize_inspect` returns `row_width_limit_chars` (widest original message row, or `message_columns`); `localize_validate` reports translated rows wider than that, ignoring control codes. A row-count check alone had let a Spanish row twice as wide as any original row pass.
+- Skill: translate a message as a whole and put it back row by row.
+
+## 0.2.1 (2026-11-11)
+
+- Skill: list the working folder first and use the game file found there instead of asking for a path.

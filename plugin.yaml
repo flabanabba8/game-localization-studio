@@ -1,5 +1,5 @@
 name: game-localization-studio
-version: "0.1.0"
+version: "0.2.1"
 description: "Source-addressed RPG Maker message translation drafts with control-token and row-budget checks."
 author: "Game Localization Studio contributors"
 license: GPL-3.0-or-later

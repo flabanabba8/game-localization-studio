@@ -14,6 +14,20 @@ from localize_test.core import Studio
 
 
 class StudioTests(unittest.TestCase):
+    def test_row_wider_than_the_widest_original_row_is_caught_and_can_be_fixed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cmds=[{'code':101,'indent':0,'parameters':['',0,0,2]},{'code':401,'indent':0,'parameters':['\\\\>\\\\i[68]\\\\}NAME\\\\{\\\\<']},{'code':401,'indent':0,'parameters':['"I did try to dip my toes in everything, but there is only so much']},{'code':401,'indent':0,'parameters':['rejection one can take."']},{'code':0,'indent':0,'parameters':[]}]
+            source=Path(tmp)/'Map001.json';source.write_text(json.dumps({'events':[None,{'id':1,'pages':[{'list':cmds}]}]}))
+            studio=Studio(Path(tmp)/'data');info=studio.inspect(str(source),message_rows=4);draft=info['draft_id']
+            self.assertGreaterEqual(info['row_width_limit_chars'],60)
+            units=studio.get(draft)['units']
+            long_text='«'+'Probé un poco de todo, pero uno solo puede soportar mucho rechazo antes de rendirse del todo»'
+            studio.translate(draft,units[0]['id'],units[0]['source']);studio.translate(draft,units[1]['id'],long_text);studio.translate(draft,units[2]['id'],'tantos rechazos.')
+            result=studio.validate(draft);self.assertFalse(result['structural_ok']);self.assertEqual(result['errors'][0]['error'],'row wider than the message box estimate')
+            with self.assertRaisesRegex(ValueError,'Validation failed'):studio.export(draft)
+            studio.translate(draft,units[1]['id'],'«Probé un poco de todo, pero uno solo aguanta')
+            self.assertTrue(studio.validate(draft)['structural_ok'])
+
     def test_busy_draft_lock_refuses_another_owner(self):
         with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
             source=Path(tmp)/'Actors.json';source.write_text(json.dumps([None, {'name':'Original'}]))
