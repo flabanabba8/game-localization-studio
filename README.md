@@ -1,5 +1,7 @@
 # Game Localization Studio
 
+![Game Localization Studio: translate the dialogue, preserve the tokens](assets/thumbnail.jpg)
+
 Development prototype for RPG Maker MV/MZ JSON. Import a source file, translate
 individually addressed message lines, choices and selected database fields, check control tokens and
 an explicitly supplied message-row limit, and export a new JSON file. The
